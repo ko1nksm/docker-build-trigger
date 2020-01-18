@@ -1,0 +1,47 @@
+#!/bin/sh -eu
+
+usage() {
+  cat<<HERE
+Usage: docker-build-trigger [Trigger URL]
+  Trigger all for this automated build.
+
+Usage: docker-build-trigger DOCKER_TAG [TRIGGER_URL]
+  Trigger by docker tag name
+
+Usage: docker-build-trigger [ branch | tag ] SOURCE_NAME [TRIGGER_URL]
+  Trigger by source branch/tag name
+
+
+Environment variables:
+  DOCKER_BUILD_TRIGGER_URL    Use as TRIGGER_URL when not specified by argument.
+HERE
+  exit
+}
+
+abort() {
+  echo "$*" >&2
+  exit 1
+}
+
+trigger_url=${DOCKER_BUILD_TRIGGER_URL:-}
+
+for arg; do
+  case $arg in
+    -h | --help) usage ;;
+    -*) abort "Unknown option '$arg'" ;;
+    https://*) trigger_url=$arg ;;
+    *) set -- "$@" "$arg" ;;
+  esac
+  shift
+done
+
+[ "$trigger_url" ] || abort "Trigger URL not specified.'"
+
+case $# in
+  0) data="{\"build\": true}" ;;
+  1) data="{\"docker_tag\": \"$1\"}" ;;
+  2) data="{\"source_type\": \"$1\", \"source_name\": \"$2\"}" ;;
+  *) abort "Too many arguments.'"
+esac
+
+curl -sSfL -H "Content-Type: application/json" -d "$data" "$trigger_url" >/dev/null
